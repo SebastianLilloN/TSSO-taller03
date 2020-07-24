@@ -6,52 +6,26 @@ uint64_t *g_numerosSerie = nullptr;
 uint32_t sumaOmpParalelo = 0;
 uint32_t sumaSerial = 0;
 
-void llenarOmp(size_t tipoSumaLlenado, size_t hilos, size_t end, size_t limInf, size_t limSup)
+void llenarOmp(size_t hilos, size_t end, size_t limInf, size_t limSup)
 {
 	std::random_device device;
 	std::mt19937 rng(device());
 	std::uniform_int_distribution<uint32_t> unif(limInf, limSup);
-	switch (tipoSumaLlenado)
-	{
-	case 0:
 #pragma omp parallel for num_threads(hilos)
-		for (size_t i = 0; i < end; ++i)
-		{
-			uint32_t number = unif(rng);
-			g_OmpParalelo[i] = number;
-		}
-		break;
-	case 1:
-#pragma omp parallel for num_threads(1)
-		for (size_t i = 0; i < end; ++i)
-		{
-			uint32_t number = unif(rng);
-			g_numerosSerie[i] = number;
-		}
-		break;
+	for (size_t i = 0; i < end; ++i)
+	{
+		uint32_t number = unif(rng);
+		g_OmpParalelo[i] = number;
 	}
 }
 
-void sumarOmp(size_t tipoSuma, size_t hilos, size_t end)
+void sumarOmp(size_t hilos, size_t end)
 {
-	switch (tipoSuma)
-	{
-	case 0:
 #pragma omp parallel for reduction(+ \
 								   : sumaOmpParalelo) num_threads(hilos)
-		for (size_t i = 0; i < end; ++i)
-		{
-			sumaOmpParalelo += g_OmpParalelo[i];
-		}
-		break;
-	case 1:
-#pragma omp parallel for reduction(+ \
-								   : sumaSerial) num_threads(hilos)
-		for (size_t i = 0; i < end; ++i)
-		{
-			sumaSerial += g_OmpParalelo[i];
-		}
-		break;
+	for (size_t i = 0; i < end; ++i)
+	{
+		sumaOmpParalelo += g_OmpParalelo[i];
 	}
 }
 
@@ -70,25 +44,32 @@ int main(int argc, char **argv)
 	g_OmpParalelo = new uint64_t[totalElementos];
 
 	auto start = std::chrono::high_resolution_clock::now();
-	llenarOmp(0, numThreads, totalElementos, numLimInf, numLimSup);
+	llenarOmp(numThreads, totalElementos, numLimInf, numLimSup);
 	auto end = std::chrono::high_resolution_clock::now();
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 	auto timepoTotalLlenadoOmp = elapsed.count();
 
+	g_numerosSerie = new uint64_t[totalElementos];
+
 	start = std::chrono::high_resolution_clock::now();
-	llenarOmp(1, 1, totalElementos, numLimInf, numLimSup);
+	for (size_t i = 0; i < totalElementos; ++i)
+	{
+		g_numerosSerie[i] = g_OmpParalelo[i];
+	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 	auto tiempoTotalLlenadoSerial = elapsed.count();
 
 	start = std::chrono::high_resolution_clock::now();
-	sumarOmp(0, numThreads, totalElementos);
+	sumarOmp(numThreads, totalElementos);
 	end = std::chrono::high_resolution_clock::now();
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 	auto tiempoTotalSumaOmp = elapsed.count();
 
 	start = std::chrono::high_resolution_clock::now();
-	sumarOmp(1, 1, totalElementos);
+	for(size_t i = 0; i < totalElementos; ++i){
+		sumaSerial += g_numerosSerie[i];
+	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 	auto tiempoTotalSumaSerial = elapsed.count();
